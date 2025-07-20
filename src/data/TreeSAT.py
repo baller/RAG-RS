@@ -116,6 +116,12 @@ class TreeSAT(Dataset):
         data_path = path + split + "_filenames.lst"
         with open(data_path, 'r') as file:
             self.data_list = [line.strip() for line in file.readlines()]
+        
+        # 如果classes为None，自动加载
+        if classes is None:
+            from data.utils import get_treesat_classes
+            classes = get_treesat_classes(path, verbose=False)
+        
         self.load_labels(classes)
         self.collate_fn = collate_fn
             
@@ -129,7 +135,12 @@ class TreeSAT(Dataset):
         y = [[0 for i in range(len(classes))] for line in lines]
         for i, line in enumerate(lines):
             for u in labels[line]:
-                y[i][classes.index(u)] = 1
+                # 只处理在classes列表中存在的标签，忽略其他标签
+                if u in classes:
+                    y[i][classes.index(u)] = 1
+                # 静默跳过未知类别以减少输出噪音
+                # else:
+                #     print(f"警告: 跳过未知类别 '{u}'，不在预定义类别列表中")
 
         self.data_list, self.labels, _, _ = iterative_train_test_split(np.expand_dims(np.array(lines), axis=1), np.array(y), test_size = 1. - self.partition)
         self.data_list = list(np.concatenate(self.data_list).flat)

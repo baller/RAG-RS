@@ -1,0 +1,13 @@
+# 路径配置
+
+# 工作目录路径 
+work_dir: ${oc.env:PROJECT_ROOT,/home/user_3/experiments/RS-Multi-Moldal/RAG-RS}
+
+# 数据目录路径
+data_dir: ${oc.env:DATA_PATH,/data/AnySat/TreeSat/}
+
+# 日志目录路径
+log_dir: ${paths.work_dir}/logs
+
+# 输出目录路径
+output_dir: ${hydra:runtime.output_dir} 

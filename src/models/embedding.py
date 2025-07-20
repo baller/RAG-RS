@@ -229,16 +229,19 @@ class MultiModalEmbeddingModel(L.LightningModule):
                 total_loss /= count
                 loss_dict['total_loss'] = total_loss
         
-        # 记录损失
+        # 记录损失 - 学习OmniSat的日志记录方式
         for key, value in loss_dict.items():
-            self.log(f'train/{key}', value, on_step=True, on_epoch=True, prog_bar=True)
+            self.log(
+                f'train/{key}',
+                value,
+                on_step=True,
+                on_epoch=True,
+                prog_bar=True,
+                sync_dist=True
+            )
         
         # 计算embedding质量指标
         self._log_embedding_metrics(embeddings, 'train')
-        
-        # 额外的wandb日志记录
-        if self.log_wandb and self.trainer.global_step % 50 == 0:
-            self._log_wandb_metrics(embeddings, loss_dict, 'train')
         
         return total_loss
     
@@ -273,16 +276,19 @@ class MultiModalEmbeddingModel(L.LightningModule):
                 total_loss /= count
                 loss_dict['total_loss'] = total_loss
         
-        # 记录验证损失
+        # 记录验证损失 - 学习OmniSat的日志记录方式
         for key, value in loss_dict.items():
-            self.log(f'val/{key}', value, on_step=False, on_epoch=True, prog_bar=True)
+            self.log(
+                f'val/{key}',
+                value,
+                on_step=False,
+                on_epoch=True,
+                prog_bar=True,
+                sync_dist=True
+            )
         
         # 计算embedding质量指标
         self._log_embedding_metrics(embeddings, 'val')
-        
-        # 额外的wandb日志记录
-        if self.log_wandb:
-            self._log_wandb_metrics(embeddings, loss_dict, 'val')
         
         return total_loss
     
@@ -291,11 +297,21 @@ class MultiModalEmbeddingModel(L.LightningModule):
         for modality, emb in embeddings.items():
             # embedding标准差（衡量特征分布）
             std = emb.std().item()
-            self.log(f'{stage}/{modality}_embedding_std', std, on_epoch=True)
+            self.log(
+                f'{stage}/{modality}_embedding_std',
+                std,
+                on_epoch=True,
+                sync_dist=True
+            )
             
             # embedding范数
             norm = emb.norm(dim=1).mean().item()
-            self.log(f'{stage}/{modality}_embedding_norm', norm, on_epoch=True)
+            self.log(
+                f'{stage}/{modality}_embedding_norm',
+                norm,
+                on_epoch=True,
+                sync_dist=True
+            )
         
         # 模态间相似度
         if len(embeddings) >= 2:
@@ -307,7 +323,12 @@ class MultiModalEmbeddingModel(L.LightningModule):
                     similarity = F.cosine_similarity(
                         embeddings[mod1].mean(0), embeddings[mod2].mean(0), dim=0
                     ).item()
-                    self.log(f'{stage}/{mod1}_{mod2}_similarity', similarity, on_epoch=True)
+                    self.log(
+                        f'{stage}/{mod1}_{mod2}_similarity',
+                        similarity,
+                        on_epoch=True,
+                        sync_dist=True
+                    )
     
     def _log_wandb_metrics(self, embeddings, loss_dict, stage):
         """记录详细的wandb指标"""

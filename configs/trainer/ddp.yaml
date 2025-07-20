@@ -1,0 +1,19 @@
+# 分布式训练配置
+
+defaults:
+  - default
+
+# 使用"ddp_spawn"而不是"ddp"
+# 虽然更慢，但普通"ddp"目前与hydra的配合不够理想
+# https://github.com/facebookresearch/hydra/issues/2070
+# https://pytorch-lightning.readthedocs.io/en/latest/accelerators/gpu_intermediate.html#distributed-data-parallel-spawn
+strategy: ddp_spawn
+
+# 硬件配置
+accelerator: gpu
+devices: 2
+num_nodes: 1
+
+# 分布式特定配置
+sync_batchnorm: True
+precision: "16-mixed" 

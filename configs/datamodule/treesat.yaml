@@ -1,0 +1,11 @@
+# @package _global_
+
+datamodule:
+  _target_: src.data.datamodule.DataModule
+  train_dataset: ${dataset.train_dataset}
+  val_dataset: ${dataset.val_dataset}  
+  test_dataset: ${dataset.test_dataset}
+  global_batch_size: ${dataset.global_batch_size}
+  num_workers: ${trainer.num_workers}
+  num_nodes: ${trainer.num_nodes}
+  num_devices: ${trainer.devices} 

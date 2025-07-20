@@ -1,0 +1,18 @@
+# @package _global_
+
+model:
+  _target_: src.models.module.MultiModalEmbeddingModule
+  model:
+    _target_: src.models.embedding.MultiModalEmbeddingModel
+    embed_dim: 512
+    backbone: "vit_b_16"
+    temperature: 0.07
+    log_wandb: false
+  optimizer:
+    _target_: torch.optim.AdamW
+    lr: 1e-4
+    weight_decay: 1e-4
+  scheduler:
+    _target_: torch.optim.lr_scheduler.CosineAnnealingLR
+    T_max: 100
+  compile_model: false 

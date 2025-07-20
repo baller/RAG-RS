@@ -1,6 +1,10 @@
 import lightning as L
 from torch.utils.data import DataLoader
 import time
+import hydra
+from omegaconf import DictConfig
+
+from data.utils import get_treesat_classes
 
 class DataModule(L.LightningDataModule):
     def __init__(
@@ -39,6 +43,35 @@ class DataModule(L.LightningDataModule):
         """
         print("Stage", stage)
         start_time = time.time()
+        
+        # 动态获取类别信息
+        if callable(self._builders["train"]):
+            # 如果是callable，先实例化一个临时数据集来获取类别信息
+            temp_train = self._builders["train"]()
+            classes = temp_train.classes if hasattr(temp_train, 'classes') else None
+            data_path = temp_train.path if hasattr(temp_train, 'path') else None
+            
+            # 如果没有类别信息，动态获取
+            if classes is None and data_path is not None:
+                try:
+                    classes = get_treesat_classes(data_path, verbose=True)
+                    print(f"动态获取到 {len(classes)} 个类别")
+                except Exception as e:
+                    print(f"获取类别失败: {e}")
+                    classes = None
+            
+            # 更新所有数据集构建器的类别信息
+            for split in ["train", "val", "test"]:
+                if split in self._builders and callable(self._builders[split]):
+                    builder = self._builders[split]
+                    if hasattr(builder, 'keywords') and builder.keywords is not None:
+                        builder.keywords['classes'] = classes
+                    elif hasattr(builder, 'func'):
+                        # 对于functools.partial对象
+                        if hasattr(builder.func, '__defaults__'):
+                            builder.keywords = builder.keywords or {}
+                            builder.keywords['classes'] = classes
+        
         if stage == "fit" or stage is None:
             self.train_dataset = self._builders["train"]()
             self.val_dataset = self._builders["val"]()

@@ -1,0 +1,14 @@
+# Hydra配置
+
+# 输出目录配置
+run:
+  dir: ./outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+
+sweep:
+  dir: ./outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+  subdir: ${hydra.job.num}
+
+# 作业配置  
+job:
+  name: ${experiment_name}
+  chdir: False 

@@ -1,0 +1,17 @@
+# wandb日志配置
+# https://wandb.ai
+
+wandb:
+  _target_: lightning.pytorch.loggers.wandb.WandbLogger
+  name: ${experiment_name}  # 运行名称（通常由wandb生成）
+  save_dir: "${paths.output_dir}"
+  offline: ${offline}
+  id: null  # 传递正确的id以恢复实验！
+  anonymous: null  # 启用匿名日志记录
+  project: "treesat-multimodal-embedding"
+  log_model: False  # 上传lightning检查点
+  prefix: ""  # 放在指标键开头的字符串
+  # entity: ""  # 设置为你的wandb团队名称
+  group: ""
+  tags: ${tags}
+  job_type: "" 

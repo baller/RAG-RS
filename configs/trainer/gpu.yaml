@@ -1,0 +1,11 @@
+# GPU训练配置
+
+defaults:
+  - default
+
+# 硬件配置
+accelerator: gpu
+precision: "16-mixed"  # 使用混合精度训练
+
+# GPU特定设置
+devices: 2  # 默认单GPU 

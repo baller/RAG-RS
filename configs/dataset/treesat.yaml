@@ -1,0 +1,42 @@
+# TreeSAT数据集配置
+
+# 数据集名称
+name: "treesat"
+
+# 数据集构建器配置
+train_dataset:
+  _target_: src.data.TreeSAT.TreeSAT
+  path: ${data_dir}
+  modalities: ["aerial", "s1", "s2"]
+  transform:
+    _target_: src.data.transforms.transform.TransformMAE
+    p: 0.5
+    size: 224
+  split: "train"
+  partition: ${partition}
+
+val_dataset:
+  _target_: src.data.TreeSAT.TreeSAT
+  path: ${data_dir}
+  modalities: ["aerial", "s1", "s2"]
+  transform:
+    _target_: src.data.transforms.transform.TransformMAE
+    p: 0.0  # 验证时不使用数据增强
+    size: 224
+  split: "val"
+  partition: 0.01  # 验证集使用10%数据
+
+test_dataset:
+  _target_: src.data.TreeSAT.TreeSAT
+  path: ${data_dir}
+  modalities: ["aerial", "s1", "s2"]
+  transform:
+    _target_: src.data.transforms.transform.TransformMAE
+    p: 0.0  # 测试时不使用数据增强
+    size: 224
+  split: "test"
+  partition: 0.01  # 测试集使用10%数据
+
+# 数据加载配置
+global_batch_size: 96
+num_classes: 15 

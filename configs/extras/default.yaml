@@ -1,0 +1,10 @@
+# 额外工具配置
+
+# 忽略python警告
+ignore_warnings: True
+
+# 从命令行强制输入标签
+enforce_tags: False
+
+# 使用Rich库打印配置树
+print_config: True 

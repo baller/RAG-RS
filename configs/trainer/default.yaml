@@ -1,0 +1,33 @@
+# 默认trainer配置
+
+# Trainer实例化配置
+_target_: lightning.pytorch.trainer.Trainer
+
+# 基本路径配置
+default_root_dir: ${paths.output_dir}
+
+# 训练轮数控制
+min_epochs: 10  # 防止过早停止
+max_epochs: ${max_epochs}
+
+# 硬件配置
+accelerator: cpu
+
+# 分布式训练配置
+strategy: auto
+num_nodes: 1
+sync_batchnorm: False
+
+# 训练配置
+precision: 32
+deterministic: False  # 设置True确保确定性结果，会使训练变慢但比仅设置种子更有重现性
+
+# 验证配置
+check_val_every_n_epoch: 1
+
+# 梯度裁剪（可选）
+# gradient_clip_val: 0.5
+
+# 设备和工作进程配置
+devices: 1
+# num_workers: 4  # 这个参数属于DataLoader，不属于Trainer 

@@ -1,0 +1,31 @@
+# 默认回调配置
+
+# 模型检查点回调
+model_checkpoint:
+  _target_: lightning.pytorch.callbacks.ModelCheckpoint
+  dirpath: ${paths.output_dir}/checkpoints
+  filename: "epoch_{epoch:03d}_val_loss_{val/total_loss:.4f}"
+  monitor: "val/total_loss"
+  mode: "min"
+  save_top_k: 3
+  save_last: True
+  verbose: True
+  auto_insert_metric_name: False
+
+# 早停回调
+early_stopping:
+  _target_: lightning.pytorch.callbacks.EarlyStopping
+  monitor: "val/total_loss"
+  mode: "min"
+  patience: 20
+  verbose: True
+  check_finite: True
+
+# 学习率监控回调
+lr_monitor:
+  _target_: lightning.pytorch.callbacks.LearningRateMonitor
+  logging_interval: "epoch"
+
+# 进度条回调
+progress_bar:
+  _target_: lightning.pytorch.callbacks.RichProgressBar 

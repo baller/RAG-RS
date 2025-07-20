@@ -33,42 +33,39 @@ def setup_data(args):
     # 模态设置
     modalities = ['aerial', 's1', 's2']
     
-    # 数据集构建器
-    def train_dataset_builder():
-        return TreeSAT(
-            path=args.data_path,
-            modalities=modalities,
-            transform=transform,
-            split='train',
-            classes=classes,
-            partition=args.data_partition
-        )
+    # 直接创建数据集实例（避免pickle序列化问题）
+    train_dataset = TreeSAT(
+        path=args.data_path,
+        modalities=modalities,
+        transform=transform,
+        split='train',
+        classes=classes,
+        partition=args.data_partition
+    )
     
-    def val_dataset_builder():
-        return TreeSAT(
-            path=args.data_path,
-            modalities=modalities,
-            transform=transform,
-            split='val',
-            classes=classes,
-            partition=1.0  # 验证集使用全部数据
-        )
+    val_dataset = TreeSAT(
+        path=args.data_path,
+        modalities=modalities,
+        transform=transform,
+        split='val',
+        classes=classes,
+        partition=0.01  # 验证集使用1%数据
+    )
     
-    def test_dataset_builder():
-        return TreeSAT(
-            path=args.data_path,
-            modalities=modalities,
-            transform=transform,
-            split='test',
-            classes=classes,
-            partition=1.0  # 测试集使用全部数据
-        )
+    test_dataset = TreeSAT(
+        path=args.data_path,
+        modalities=modalities,
+        transform=transform,
+        split='test',
+        classes=classes,
+        partition=0.02  # 测试集使用2%数据
+    )
     
     # 创建数据模块
     datamodule = DataModule(
-        train_dataset=train_dataset_builder,
-        val_dataset=val_dataset_builder,
-        test_dataset=test_dataset_builder,
+        train_dataset=train_dataset,
+        val_dataset=val_dataset,
+        test_dataset=test_dataset,
         global_batch_size=args.batch_size,
         num_workers=args.num_workers,
         num_nodes=args.num_nodes,
@@ -174,7 +171,7 @@ def main():
     # 数据相关参数
     parser.add_argument('--data_path', type=str, default='/data/AnySat/TreeSat/',
                        help='TreeSAT数据集路径')
-    parser.add_argument('--data_partition', type=float, default=1.0,
+    parser.add_argument('--data_partition', type=float, default=0.01,
                        help='使用的数据比例 (0.0-1.0)')
     parser.add_argument('--image_size', type=int, default=224,
                        help='输入图像尺寸')
@@ -194,7 +191,7 @@ def main():
                        help='三种模态对的权重 [aerial-s1, aerial-s2, s1-s2]')
     
     # 训练相关参数
-    parser.add_argument('--batch_size', type=int, default=64,
+    parser.add_argument('--batch_size', type=int, default=32,
                        help='批次大小')
     parser.add_argument('--learning_rate', type=float, default=1e-4,
                        help='学习率')
@@ -292,22 +289,48 @@ def main():
     print("设置日志记录器...")
     logger = setup_logger(args)
     
+    # 检查可用GPU数量并调整配置
+    available_gpus = torch.cuda.device_count()
+    print(f"检测到 {available_gpus} 个可用GPU")
+    
+    # 智能调整设备数量
+    if args.num_devices > available_gpus:
+        print(f"警告：请求的GPU数量({args.num_devices})超过可用数量({available_gpus})，调整为{available_gpus}")
+        args.num_devices = available_gpus
+    
+    # 如果没有GPU，使用CPU
+    if available_gpus == 0:
+        print("未检测到GPU，使用CPU训练")
+        devices = 'cpu'
+        strategy = 'auto'
+    else:
+        devices = args.num_devices
+        # 智能选择分布式策略
+        if args.num_devices > 1 and args.num_nodes == 1:
+            strategy = 'ddp'  # 单节点多GPU
+        elif args.num_devices > 1 and args.num_nodes > 1:
+            strategy = 'ddp'  # 多节点多GPU
+        else:
+            strategy = 'auto'  # 单GPU或CPU
+    
+    print(f"使用设备: {devices}, 策略: {strategy}")
+    
     # 设置训练器
     print("设置训练器...")
     trainer = L.Trainer(
         max_epochs=args.max_epochs,
-        devices=args.num_devices,
+        devices=devices,
         num_nodes=args.num_nodes,
         precision=args.precision,
         logger=logger,
         callbacks=callbacks,
         enable_checkpointing=True,
-        log_every_n_steps=50,
+        log_every_n_steps=5,
         val_check_interval=1.0,
         enable_model_summary=True,
         gradient_clip_val=1.0,  # 梯度裁剪
         deterministic=True,
-        strategy='ddp' if args.num_devices > 1 else 'auto'
+        strategy=strategy
     )
     
     # 开始训练
