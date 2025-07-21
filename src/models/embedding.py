@@ -292,6 +292,53 @@ class MultiModalEmbeddingModel(L.LightningModule):
         
         return total_loss
     
+    def test_step(self, batch, batch_idx):
+        """测试步骤"""
+        embeddings = self(batch)
+        
+        available_modalities = list(embeddings.keys())
+        if len(available_modalities) < 2:
+            return None
+            
+        # 计算测试损失
+        if len(available_modalities) == 3:
+            total_loss, loss_dict = self.triple_contrastive_loss(
+                embeddings['aerial'], embeddings['s1'], embeddings['s2']
+            )
+        else:
+            # 处理两个模态的情况
+            modality_pairs = [('aerial', 's1'), ('aerial', 's2'), ('s1', 's2')]
+            total_loss = 0
+            loss_dict = {}
+            count = 0
+            
+            for mod1, mod2 in modality_pairs:
+                if mod1 in available_modalities and mod2 in available_modalities:
+                    loss = self.contrastive_loss(embeddings[mod1], embeddings[mod2])
+                    total_loss += loss
+                    loss_dict[f'{mod1}_{mod2}_loss'] = loss
+                    count += 1
+            
+            if count > 0:
+                total_loss /= count
+                loss_dict['total_loss'] = total_loss
+        
+        # 记录测试损失
+        for key, value in loss_dict.items():
+            self.log(
+                f'test/{key}',
+                value,
+                on_step=False,
+                on_epoch=True,
+                prog_bar=True,
+                sync_dist=True
+            )
+        
+        # 计算embedding质量指标
+        self._log_embedding_metrics(embeddings, 'test')
+        
+        return total_loss
+    
     def _log_embedding_metrics(self, embeddings, stage):
         """记录embedding质量指标"""
         for modality, emb in embeddings.items():

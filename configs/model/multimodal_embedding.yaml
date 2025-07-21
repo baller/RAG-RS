@@ -12,7 +12,7 @@ warmup_epochs: 10
 modality_weights: [1.0, 1.0, 1.0]  # [aerial-s1, aerial-s2, s1-s2]
 
 # 网络架构配置
-backbone: "resnet50"  # resnet50 或 vit_b_16
+backbone: "vit_b_16"  # resnet50 或 vit_b_16
 
 # 日志配置
 log_wandb: True 

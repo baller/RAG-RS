@@ -29,5 +29,7 @@ check_val_every_n_epoch: 1
 # gradient_clip_val: 0.5
 
 # 设备和工作进程配置
-devices: 1
+devices: 3
 # num_workers: 4  # 这个参数属于DataLoader，不属于Trainer 
+# 在trainer配置
+log_every_n_steps: 5  # 改为每10步输出一次

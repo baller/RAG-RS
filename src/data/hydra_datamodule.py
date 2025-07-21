@@ -73,7 +73,7 @@ class HydraDataModule(L.LightningDataModule):
                 transform=val_transform,
                 split="val",
                 classes=self.classes,
-                partition=0.1
+                partition=self.val_dataset_config.partition
             )
             
             print(f"训练数据集大小: {len(self.train_dataset)}")
@@ -91,7 +91,7 @@ class HydraDataModule(L.LightningDataModule):
                 transform=test_transform,
                 split="test",
                 classes=self.classes,
-                partition=0.1
+                partition=self.test_dataset_config.partition
             )
             
             print(f"测试数据集大小: {len(self.test_dataset)}")
