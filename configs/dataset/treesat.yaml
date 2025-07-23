@@ -38,5 +38,5 @@ test_dataset:
   partition: 1.0 # 验证集使用100%数据
 
 # 数据加载配置
-global_batch_size: 96
+global_batch_size: 64
 num_classes: 15 

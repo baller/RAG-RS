@@ -18,14 +18,8 @@ class ModalityEncoder(nn.Module):
         self.backbone_type = backbone
         
         if backbone == 'resnet50':
-            # 使用预训练的ResNet50作为backbone
+            # 使用预训练的ResNet50作为backbone，保持原始3通道结构
             backbone_model = resnet50(weights=ResNet50_Weights.IMAGENET1K_V2)
-            
-            # 修改第一层卷积以适应不同的输入通道数
-            if input_channels != 3:
-                backbone_model.conv1 = nn.Conv2d(
-                    input_channels, 64, kernel_size=7, stride=2, padding=3, bias=False
-                )
             
             # 移除最后的分类层
             backbone_model.fc = nn.Identity()
@@ -33,31 +27,8 @@ class ModalityEncoder(nn.Module):
             backbone_output_dim = 2048
             
         elif backbone == 'vit_b_16':
-            # 使用预训练的Vision Transformer
+            # 使用预训练的Vision Transformer，保持原始3通道结构
             backbone_model = vit_b_16(weights=ViT_B_16_Weights.IMAGENET1K_V1)
-            
-            # 修改patch embedding以适应不同的输入通道数
-            if input_channels != 3:
-                original_conv = backbone_model.conv_proj
-                backbone_model.conv_proj = nn.Conv2d(
-                    input_channels, 
-                    original_conv.out_channels,
-                    kernel_size=original_conv.kernel_size,
-                    stride=original_conv.stride,
-                    padding=original_conv.padding,
-                    bias=original_conv.bias is not None
-                )
-                
-                # 如果输入通道数不是3，需要调整权重
-                if input_channels != 3:
-                    with torch.no_grad():
-                        if input_channels < 3:
-                            # 如果输入通道少于3，取前几个通道的权重
-                            backbone_model.conv_proj.weight.data = original_conv.weight.data[:, :input_channels, :, :]
-                        else:
-                            # 如果输入通道多于3，重复RGB权重
-                            new_weight = original_conv.weight.data.repeat(1, input_channels // 3 + 1, 1, 1)
-                            backbone_model.conv_proj.weight.data = new_weight[:, :input_channels, :, :]
             
             # 移除分类头
             backbone_model.heads = nn.Identity()
@@ -67,6 +38,12 @@ class ModalityEncoder(nn.Module):
         else:
             raise ValueError(f"不支持的backbone类型: {backbone}")
         
+        # 通道适配层：将不同通道数转换为3通道
+        if input_channels != 3:
+            self.channel_adapter = self._create_channel_adapter(input_channels)
+        else:
+            self.channel_adapter = nn.Identity()
+        
         # 投影头：将backbone输出映射到embedding空间
         self.projection_head = nn.Sequential(
             nn.Linear(backbone_output_dim, embed_dim * 2),
@@ -75,11 +52,33 @@ class ModalityEncoder(nn.Module):
             nn.Linear(embed_dim * 2, embed_dim),
             nn.BatchNorm1d(embed_dim)
         )
+    
+    def _create_channel_adapter(self, input_channels):
+        """创建通道适配层，将任意通道数转换为3通道"""
+        if input_channels < 3:
+            # 通道数少于3：使用1x1卷积升维
+            return nn.Sequential(
+                nn.Conv2d(input_channels, 3, kernel_size=1, stride=1, padding=0, bias=False),
+                nn.BatchNorm2d(3),
+                nn.ReLU(inplace=True)
+            )
+        elif input_channels > 3:
+            # 通道数多于3：使用1x1卷积降维
+            return nn.Sequential(
+                nn.Conv2d(input_channels, 3, kernel_size=1, stride=1, padding=0, bias=False),
+                nn.BatchNorm2d(3),
+                nn.ReLU(inplace=True)
+            )
+        else:
+            return nn.Identity()
         
     def forward(self, x):
         # 处理不同维度的输入数据
         if x.dim() == 5:  # (B, T, C, H, W) - 批次时序数据
             x = x[:,random.randint(0,x.shape[1]-1),:,:,:]
+        
+        # 通道适配：转换为3通道
+        x = self.channel_adapter(x)  # (B, 3, H, W)
         
         # 通过backbone提取特征
         features = self.backbone(x)  # (B, backbone_output_dim)

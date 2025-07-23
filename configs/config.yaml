@@ -43,10 +43,10 @@ ckpt_path: null  # 简单提供checkpoint路径以恢复训练
 seed: 42
 
 # 数据分区
-partition: 0.0005
+partition: 1.0
 
 # 最大训练轮数
-max_epochs: 20
+max_epochs: 100
 
 # 离线模式
 offline: False

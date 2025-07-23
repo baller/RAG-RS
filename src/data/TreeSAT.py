@@ -18,8 +18,6 @@ def collate_fn(batch):
     """
     keys = list(batch[0].keys())
     output = {}
-    
-    # 处理时序数据（需要padding到相同长度）
     for key in ["s2", "s1-asc", "s1-des", "s1"]:
         if key in keys:
             idx = [x[key] for x in batch]
@@ -30,46 +28,20 @@ def collate_fn(batch):
                 ], dim=0)
             output[key] = stacked_tensor
             keys.remove(key)
-            
-            # 检查是否有对应的日期信息，确保所有样本都有这个键
-            date_key = '_'.join([key, "dates"])
-            if date_key in keys and all(date_key in sample for sample in batch):
-                try:
-                    idx = [x[date_key] for x in batch]
-                    max_size_0 = max(tensor.size(0) for tensor in idx)
-                    stacked_tensor = torch.stack([
-                    torch.nn.functional.pad(tensor, (0, max_size_0 - tensor.size(0)))
-                    for tensor in idx
-                ], dim=0)
-                    output[date_key] = stacked_tensor
-                    keys.remove(date_key)
-                except Exception as e:
-                    print(f"警告: 处理日期键 '{date_key}' 时出错: {e}")
-                    # 如果处理失败，从keys中移除避免后续处理错误
-                    if date_key in keys:
-                        keys.remove(date_key)
-    
-    # 处理文件名（不需要stack）
+            # key = '_'.join([key, "dates"])
+            # idx = [x[key] for x in batch]
+            # max_size_0 = max(tensor.size(0) for tensor in idx)
+            # stacked_tensor = torch.stack([
+            #         torch.nn.functional.pad(tensor, (0, max_size_0 - tensor.size(0)))
+            #         for tensor in idx
+            #     ], dim=0)
+            # output[key] = stacked_tensor
+            # keys.remove(key)
     if 'name' in keys:
         output['name'] = [x['name'] for x in batch]
         keys.remove('name')
-    
-    # 处理其他数据（如label, aerial等）
     for key in keys:
-        try:
-            # 确保所有样本都有这个键
-            if all(key in sample for sample in batch):
-                output[key] = torch.stack([x[key] for x in batch])
-            else:
-                print(f"警告: 不是所有样本都包含键 '{key}'，跳过处理")
-        except Exception as e:
-            print(f"警告: 无法stack键 '{key}': {e}")
-            # 如果stack失败，尝试列表形式
-            try:
-                output[key] = [x[key] for x in batch]
-            except Exception as e2:
-                print(f"警告: 无法处理键 '{key}': {e2}")
-    
+        output[key] = torch.stack([x[key] for x in batch])
     return output
 
 def day_number_in_year(date_arr, place=4):
