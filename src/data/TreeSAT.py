@@ -266,7 +266,8 @@ class TreeSAT(Dataset):
             output.pop("s1_dates")
         if "s2_dates" in output:
             output.pop("s2_dates")
-        return self.transform(output)
-        # return output
+        # 修复bug：self.transform 期望输入为字典，但这里只传入了Tensor，导致报错
+        output = self.transform(output)
+        return output
     def __len__(self):
         return len(self.data_list)

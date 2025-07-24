@@ -54,29 +54,29 @@ class TransformMAE(object):
         # 检查张量的维度和形状
         if tensor.dim() == 3:  # (C, H, W)
             return TF.resize(tensor, [target_size, target_size], antialias=True)
-        elif tensor.dim() == 4:  # (T, C, H, W) 时序数据
-            # 对每个时间步分别进行resize
-            resized_frames = []
-            for t in range(tensor.shape[0]):
-                frame = tensor[t]  # (C, H, W)
-                resized_frame = TF.resize(frame, [target_size, target_size], antialias=True)
-                resized_frames.append(resized_frame)
-            return torch.stack(resized_frames, dim=0)  # (T, C, H, W)
-        elif tensor.dim() == 5:  # (B, T, C, H, W) 批次时序数据
-            # 对每个batch和每个时间步分别进行resize
-            batch_size, time_steps = tensor.shape[0], tensor.shape[1]
-            resized_data = []
-            for b in range(batch_size):
-                batch_frames = []
-                for t in range(time_steps):
-                    frame = tensor[b, t]  # (C, H, W)
-                    resized_frame = TF.resize(frame, [target_size, target_size], antialias=True)
-                    batch_frames.append(resized_frame)
-                resized_data.append(torch.stack(batch_frames, dim=0))  # (T, C, H, W)
-            return torch.stack(resized_data, dim=0)  # (B, T, C, H, W)
+        # elif tensor.dim() == 4:  # (T, C, H, W) 时序数据
+        #     # 对每个时间步分别进行resize
+        #     resized_frames = []
+        #     for t in range(tensor.shape[0]):
+        #         frame = tensor[t]  # (C, H, W)
+        #         resized_frame = TF.resize(frame, [target_size, target_size], antialias=True)
+        #         resized_frames.append(resized_frame)
+        #     return torch.stack(resized_frames, dim=0)  # (T, C, H, W)
+        # elif tensor.dim() == 5:  # (B, T, C, H, W) 批次时序数据
+        #     # 对每个batch和每个时间步分别进行resize
+        #     batch_size, time_steps = tensor.shape[0], tensor.shape[1]
+        #     resized_data = []
+        #     for b in range(batch_size):
+        #         batch_frames = []
+        #         for t in range(time_steps):
+        #             frame = tensor[b, t]  # (C, H, W)
+        #             resized_frame = TF.resize(frame, [target_size, target_size], antialias=True)
+        #             batch_frames.append(resized_frame)
+        #         resized_data.append(torch.stack(batch_frames, dim=0))  # (T, C, H, W)
+        #     return torch.stack(resized_data, dim=0)  # (B, T, C, H, W)
         else:
             # 不支持的张量维度，打印调试信息
-            print(f"警告: 不支持的张量维度 {tensor.dim()}, 形状: {tensor.shape}")
+            # print(f"警告: 不支持的张量维度 {tensor.dim()}, 形状: {tensor.shape}")
             return tensor
 
     def __call__(self, batch):
@@ -89,7 +89,7 @@ class TransformMAE(object):
         for key in keys:
             try:
                 if self.s2 and key in ['s2-4season-median', 's2-median']:
-                    target_size = self.s2_size
+                        target_size = self.s2_size
                 else:
                     target_size = self.size
                 

@@ -9,9 +9,9 @@ import math
 import wandb
 
 
-class ModalityEncoder(nn.Module):
-    """单个模态的编码器"""
-    def __init__(self, input_channels, embed_dim=512, backbone='resnet50'):
+class AerialEncoder(nn.Module):
+    """Aerial编码器，专门处理高分辨率图像数据，支持ViT和ResNet backbone"""
+    def __init__(self, input_channels=4, embed_dim=512, backbone='vit_b_16'):
         super().__init__()
         self.input_channels = input_channels
         self.embed_dim = embed_dim
@@ -65,7 +65,7 @@ class ModalityEncoder(nn.Module):
             backbone_output_dim = 768  # ViT-B/16的输出维度
             
         else:
-            raise ValueError(f"不支持的backbone类型: {backbone}")
+            raise ValueError(f"AerialEncoder不支持的backbone类型: {backbone}")
         
         # 投影头：将backbone输出映射到embedding空间
         self.projection_head = nn.Sequential(
@@ -77,10 +77,6 @@ class ModalityEncoder(nn.Module):
         )
         
     def forward(self, x):
-        # 处理不同维度的输入数据
-        if x.dim() == 5:  # (B, T, C, H, W) - 批次时序数据
-            x = x[:,random.randint(0,x.shape[1]-1),:,:,:]
-        
         # 通过backbone提取特征
         features = self.backbone(x)  # (B, backbone_output_dim)
         
@@ -93,37 +89,112 @@ class ModalityEncoder(nn.Module):
         return embeddings
 
 
+class MLPEncoder(nn.Module):
+    """MLP编码器，专门处理小尺寸时序数据（S1, S2），使用mean时序聚合"""
+    def __init__(self, input_channels, embed_dim=512, spatial_size=6, dropout=0.1):
+        super().__init__()
+        self.input_channels = input_channels
+        self.embed_dim = embed_dim
+        self.spatial_size = spatial_size
+        
+        # 计算展平后的特征维度
+        # 输入: (B, T, C, H, W) -> mean聚合后: (B, C, H, W) -> 展平: (B, C*H*W)
+        input_dim = input_channels * spatial_size * spatial_size
+        
+        # MLP投影网络
+        self.projection = nn.Sequential(
+            # 第一层：输入维度到中间维度
+            nn.Linear(input_dim, embed_dim * 4),
+            nn.BatchNorm1d(embed_dim * 4),
+            nn.ReLU(inplace=True),
+            nn.Dropout(dropout),
+            
+            # 第二层：中间维度到中间维度  
+            nn.Linear(embed_dim * 4, embed_dim * 2),
+            nn.BatchNorm1d(embed_dim * 2),
+            nn.ReLU(inplace=True),
+            nn.Dropout(dropout),
+            
+            # 第三层：中间维度到目标维度
+            nn.Linear(embed_dim * 2, embed_dim),
+            nn.BatchNorm1d(embed_dim)
+        )
+    
+    def forward(self, x):
+        # 处理时序数据
+        if x.dim() == 5:  # (B, T, C, H, W) - 批次时序数据
+            # 使用mean进行时序聚合
+            x = torch.mean(x, dim=1)  # (B, C, H, W)
+        elif x.dim() == 4 and x.shape[0] > 1:  # (T, C, H, W) - 单样本时序数据
+            # 如果是单样本的时序数据，也进行mean聚合
+            x = torch.mean(x, dim=0, keepdim=True)  # (1, C, H, W)
+        
+        # 展平空间维度
+        batch_size = x.size(0)
+        x = x.view(batch_size, -1)  # (B, C*H*W)
+        
+        # 通过MLP得到embedding
+        embeddings = self.projection(x)  # (B, embed_dim)
+        
+        # L2归一化
+        embeddings = F.normalize(embeddings, p=2, dim=1)
+        
+        return embeddings
+
+
 class MultiModalEmbeddingModel(L.LightningModule):
-    """多模态embedding训练模型"""
+    """多模态embedding训练模型，使用异构编码器架构"""
     
     def __init__(
         self,
-        embed_dim=512,
+        embed_dim=1024,
         temperature=0.07,
         learning_rate=1e-4,
         weight_decay=1e-4,
-        warmup_epochs=10,
-        max_epochs=100,
+        warmup_epochs=20,
+        max_epochs=200,
         modality_weights=None,
-        backbone='resnet50',
-        log_wandb=True
+        backbone='vit_b_16',
+        log_wandb=True,
+        lr_scaling=None,
+        batch_size=None
     ):
         super().__init__()
         self.save_hyperparameters()
         
-        # 三个模态的编码器
-        self.aerial_encoder = ModalityEncoder(input_channels=4, embed_dim=embed_dim, backbone=backbone)
-        self.s1_encoder = ModalityEncoder(input_channels=2, embed_dim=embed_dim, backbone=backbone)
-        self.s2_encoder = ModalityEncoder(input_channels=10, embed_dim=embed_dim, backbone=backbone)
+        # 异构编码器架构
+        # Aerial: 高分辨率图像 → AerialEncoder(ViT/ResNet)
+        self.aerial_encoder = AerialEncoder(
+            input_channels=4, 
+            embed_dim=embed_dim, 
+            backbone=backbone
+        )
+        
+        # S1: 2通道×6×6时序 → MLPEncoder(mean聚合)
+        self.s1_encoder = MLPEncoder(
+            input_channels=2,
+            embed_dim=embed_dim,
+            spatial_size=6
+        )
+        
+        # S2: 10通道×6×6时序 → MLPEncoder(mean聚合)
+        self.s2_encoder = MLPEncoder(
+            input_channels=10,
+            embed_dim=embed_dim,
+            spatial_size=6
+        )
         
         # 超参数
         self.temperature = temperature
-        self.learning_rate = learning_rate
+        self.base_learning_rate = learning_rate  # 保存原始学习率
         self.weight_decay = weight_decay
         self.warmup_epochs = warmup_epochs
         self.max_epochs = max_epochs
         self.backbone = backbone
         self.log_wandb = log_wandb
+        
+        # 学习率缩放逻辑
+        self.learning_rate = self._calculate_scaled_lr(learning_rate, lr_scaling, batch_size)
         
         # 模态权重 (aerial-s1, aerial-s2, s1-s2)
         if modality_weights is None:
@@ -133,6 +204,47 @@ class MultiModalEmbeddingModel(L.LightningModule):
             
         # 用于监控训练过程
         self.automatic_optimization = True
+    
+    def _calculate_scaled_lr(self, base_lr, lr_scaling, batch_size):
+        """根据batch size缩放学习率"""
+        if lr_scaling is None or not lr_scaling.get('enabled', False) or batch_size is None:
+            return base_lr
+        
+        rule = lr_scaling.get('rule', 'linear')
+        base_batch_size = lr_scaling.get('base_batch_size', 32)
+        
+        scale_factor = batch_size / base_batch_size
+        
+        if rule == 'linear':
+            scaled_lr = base_lr * scale_factor
+        elif rule == 'sqrt':
+            scaled_lr = base_lr * math.sqrt(scale_factor)
+        elif rule == 'none':
+            scaled_lr = base_lr
+        else:
+            raise ValueError(f"不支持的学习率缩放规则: {rule}")
+        
+        print(f"🔧 学习率缩放: {base_lr:.2e} → {scaled_lr:.2e} (batch_size: {batch_size}, rule: {rule})")
+        return scaled_lr
+    
+    def _adjust_temperature_for_batch_size(self, base_temp, batch_size):
+        """根据batch size调整温度参数
+        
+        对比学习中，更大的batch size意味着更多负样本，
+        可能需要稍微调整温度参数来平衡学习难度
+        """
+        if batch_size is None:
+            return base_temp
+            
+        # 经验公式：温度随batch size对数增长而轻微增加
+        # 这有助于在大batch size时保持合适的学习难度
+        temp_adjustment = 1.0 + 0.01 * math.log(batch_size / 32.0) if batch_size > 32 else 1.0
+        adjusted_temp = base_temp * temp_adjustment
+        
+        if abs(adjusted_temp - base_temp) > 0.001:
+            print(f"🌡️ 温度参数调整: {base_temp:.3f} → {adjusted_temp:.3f} (batch_size: {batch_size})")
+        
+        return adjusted_temp
         
     def contrastive_loss(self, embeddings1, embeddings2):
         """计算两个模态之间的对比学习损失"""

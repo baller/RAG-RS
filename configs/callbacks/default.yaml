@@ -7,7 +7,7 @@ model_checkpoint:
   filename: "epoch_{epoch:03d}_val_loss_{val/total_loss:.4f}"
   monitor: "val/total_loss"
   mode: "min"
-  save_top_k: 3
+  save_top_k: 10
   save_last: True
   verbose: True
   auto_insert_metric_name: False
@@ -17,7 +17,7 @@ early_stopping:
   _target_: lightning.pytorch.callbacks.EarlyStopping
   monitor: "val/total_loss"
   mode: "min"
-  patience: 20
+  patience: 100
   verbose: True
   check_finite: True
 

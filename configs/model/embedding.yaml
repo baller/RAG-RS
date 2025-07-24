@@ -4,7 +4,7 @@ model:
   _target_: src.models.module.MultiModalEmbeddingModule
   model:
     _target_: src.models.embedding.MultiModalEmbeddingModel
-    embed_dim: 512
+    embed_dim: 256
     backbone: "vit_b_16"
     temperature: 0.07
     log_wandb: false
@@ -16,3 +16,38 @@ model:
     _target_: torch.optim.lr_scheduler.CosineAnnealingLR
     T_max: 100
   compile_model: false 
+
+# 多模态Embedding模型配置
+_target_: src.models.embedding.MultiModalEmbeddingModel
+
+# 模型架构参数
+embed_dim: 256
+backbone: "vit_b_16"  # "vit_b_16" 或 "resnet50"
+
+# 对比学习参数
+temperature: 0.07  # 温度参数，batch size增大时可能需要调整
+
+# 学习率配置 - 支持batch size缩放
+learning_rate: 1e-4  # 基础学习率 (适用于batch_size=16-32)
+
+# batch size缩放规则配置
+lr_scaling:
+  enabled: true
+  rule: "linear"  # "linear", "sqrt", "none"
+  base_batch_size: 32  # 基础batch size
+  # 示例缩放：
+  # batch_size=320 → lr=1e-3 (10倍)
+  # batch_size=64  → lr=2e-4 (2倍)
+
+# 优化器参数
+weight_decay: 1e-4
+
+# 学习率调度
+warmup_epochs: 20  # 大batch size训练时建议增加warmup
+max_epochs: 200
+
+# 模态权重
+modality_weights: [1.0, 1.0, 1.0]  # [aerial-s1, aerial-s2, s1-s2]
+
+# 日志配置
+log_wandb: true 

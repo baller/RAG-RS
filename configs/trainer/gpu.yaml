@@ -8,4 +8,4 @@ accelerator: gpu
 precision: "16-mixed"  # 使用混合精度训练
 log_every_n_steps: 5
 # GPU特定设置
-devices: 3  # 默认单GPU 
+devices: 3 # 默认单GPU 

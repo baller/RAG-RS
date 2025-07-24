@@ -24,7 +24,7 @@ val_dataset:
     p: 0.0  # 验证时不使用数据增强
     size: 224
   split: "val"
-  partition: 1.0 # 验证集使用100%数据
+  partition: 0.5 # 验证集使用5%数据
 
 test_dataset:
   _target_: src.data.TreeSAT.TreeSAT
@@ -35,8 +35,8 @@ test_dataset:
     p: 0.0  # 测试时不使用数据增强
     size: 224
   split: "test"
-  partition: 1.0 # 验证集使用100%数据
+  partition: 0.5 # 验证集使用5%数据
 
 # 数据加载配置
-global_batch_size: 96
+global_batch_size: 768
 num_classes: 15 
